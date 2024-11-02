@@ -1,104 +1,119 @@
+/* eslint-disable no-unused-vars */
 
 import React, { useEffect } from "react"
 import Sidebar from "./components/Sidebar"
 import Editor from "./components/Editor"
-import { data } from "./data"
 import Split from "react-split"
-import {nanoid} from "nanoid"
+import { nanoid } from "nanoid"
+import { onSnapshot, addDoc, doc, deleteDoc, setDoc } from "firebase/firestore"
+import { notesCollection, db } from "./firebase"
+
 
 
 export default function App() {
- 
-  const [notes, setNotes] = React.useState(()=> JSON.parse(localStorage.getItem('notes')) || [])
-  const [currentNoteId, setCurrentNoteId] = React.useState(
-      () => (notes[0] && notes[0].id) || ""
-  )
+
+    const [notes, setNotes] = React.useState([])
+    const [currentNoteId, setCurrentNoteId] = React.useState("")
+
+
+    const currentNote =
+        notes.find(note => note.id === currentNoteId)
+        || notes[0]
+
+
+    /* 
+        /* The {onSnapshot} function in Firestore is used to set up a real-time listener that triggers a callback every time the data in a specific Firestore collection changes. Here is an explanation of its arguments:
+        
+        Collection Reference: The first argument passed to onSnapshot is the reference to the Firestore collection you want to listen to. In the provided code snippet, notesCollection is the reference to the Firestore collection where the notes are stored. This is the collection that the listener will be attached to.
+        Callback Function: The second argument is a callback function that will be called every time there is a change in the specified collection. This function receives a snapshot object as a parameter, which represents the current state of the collection at the time the callback is triggered.
+        In the provided code snippet, the callback function takes the snapshot object and performs the following actions:
+        
+        Maps over the docs array in the snapshot to extract the data of each document.
+        Creates an array of note objects by spreading the document data and adding an id field with the document's ID.
+        Updates the local state notes with the new array of note objects, effectively syncing the local state with the latest data from the Firestore collection.
+        By using onSnapshot, the component stays in sync with the Firestore collection in real-time, ensuring that any changes to the notes in the collection are reflected immediately in the UI.
+   */
+
+    useEffect(() => {
+        const unsubscribe = onSnapshot(notesCollection, function (snapshot) {
+            // Sync up our local notes array with the snapshot data
+            const notesArr = snapshot.docs.map(doc => ({
+                ...doc.data(),
+                id: doc.id
+            }))
+
+            setNotes(notesArr)
+        })
+
+        return unsubscribe
+    }, [])
+
+    useEffect(()=>{
+        if(!currentNoteId){
+            setCurrentNoteId(notes[0]?.id)
+        }
+    }, [notes])
+
+    async function createNewNote() {
+        const newNote = {
+            body: "# Type your markdown note's title here",
+        }
+       
+        const newNoteRef =  await addDoc(notesCollection, newNote)
+
+        setCurrentNoteId(newNoteRef.id)
+    }
+
+    async function updateNote(text) {
+        const docRef =  doc(db,'notes' , currentNoteId )
+
+        await setDoc(docRef, {body:text}, {merge: true} )
 
 
 
+    }
 
-  useEffect(()=>{
-    localStorage.setItem('notes', JSON.stringify(notes))
-  }, [notes])
-  
-  function createNewNote() {
-      const newNote = {
-          id: nanoid(),
-          body: "# Type your markdown note's title here", 
-      }
-      setNotes(prevNotes => [newNote, ...prevNotes])
-      setCurrentNoteId(newNote.id)
-  }
-  
-  function updateNote(text) {
+    async function deleteNote( noteId) {
+       const docRef =  doc(db,'notes' ,noteId )
+       await  deleteDoc(docRef)
+    }
 
-    setNotes(oldNotes => {
-      const newArray = []
-      for(let i = 0; i < oldNotes.length; i++) {
-          const oldNote = oldNotes[i]
-          if(oldNote.id === currentNoteId) {
-              newArray.unshift({ ...oldNote, body: text })
-          } else {
-              newArray.push(oldNote)
-          }
-      }
-      return newArray
-  })
+    return (
+        <main>
+            {
+                notes.length > 0
+                    ?
+                    <Split
+                        sizes={[30, 70]}
+                        direction="horizontal"
+                        className="split"
+                    >
+                        <Sidebar
+                            notes={notes}
+                            currentNote={currentNote}
+                            setCurrentNoteId={setCurrentNoteId}
+                            newNote={createNewNote}
+                            deleteNote={deleteNote}
+                        />
+                        {
+                            <Editor
+                                currentNote={currentNote}
+                                updateNote={updateNote}
+                            />
+                        }
+                    </Split>
+                    :
+                    <div className="no-notes">
+                        <h1>You have no notes</h1>
+                        <button
+                            className="first-note"
+                            onClick={createNewNote}
+                        >
+                            Create one now
+                        </button>
+                    </div>
 
-  }
-
-  function deleteNote(event, noteId) {
-    event.stopPropagation()
-    setNotes(oldNotes => oldNotes.filter( note => note.id !== noteId))
-
-}
-  
-  function findCurrentNote() {
-    
-      return notes.find(note => {
-      
-          return note.id === currentNoteId
-      }) || notes[0]
-  }
-  
-  return (
-      <main>
-      {
-          notes.length > 0 
-          ?
-          <Split 
-              sizes={[30, 70]} 
-              direction="horizontal" 
-              className="split"
-          >
-              <Sidebar
-                  notes={notes}
-                  currentNote={findCurrentNote()}
-                  setCurrentNoteId={setCurrentNoteId}
-                  newNote={createNewNote}
-                  deleteNote ={ deleteNote}
-              />
-              {
-                  currentNoteId && 
-                  notes.length > 0 &&
-                  <Editor 
-                      currentNote={findCurrentNote()} 
-                      updateNote={updateNote} 
-                  />
-              }
-          </Split>
-          :
-          <div className="no-notes">
-              <h1>You have no notes</h1>
-              <button 
-                  className="first-note" 
-                  onClick={createNewNote}
-              >
-                  Create one now
-              </button>
-          </div>
-          
-      }
-      </main>
-  )
+            }
+        </main>
+    )
 }
