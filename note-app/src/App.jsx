@@ -15,6 +15,9 @@ export default function App() {
     const [notes, setNotes] = React.useState([])
     const [currentNoteId, setCurrentNoteId] = React.useState("")
 
+    const sortedArray = notes.sort((a,b) => b.updatedAt  - a.updatedAt)
+
+
 
     const currentNote =
         notes.find(note => note.id === currentNoteId)
@@ -39,7 +42,7 @@ export default function App() {
             // Sync up our local notes array with the snapshot data
             const notesArr = snapshot.docs.map(doc => ({
                 ...doc.data(),
-                id: doc.id
+                id: doc.id, 
             }))
 
             setNotes(notesArr)
@@ -57,6 +60,8 @@ export default function App() {
     async function createNewNote() {
         const newNote = {
             body: "# Type your markdown note's title here",
+            createdAt: Date.now(), 
+            updatedAt: Date.now()
         }
        
         const newNoteRef =  await addDoc(notesCollection, newNote)
@@ -66,10 +71,10 @@ export default function App() {
 
     async function updateNote(text) {
         const docRef =  doc(db,'notes' , currentNoteId )
+        await setDoc(docRef, {body:text, updatedAt: Date.now()}, {merge: true} )
+ 
 
-        await setDoc(docRef, {body:text}, {merge: true} )
-
-
+     
 
     }
 
@@ -89,7 +94,7 @@ export default function App() {
                         className="split"
                     >
                         <Sidebar
-                            notes={notes}
+                            notes={sortedArray}
                             currentNote={currentNote}
                             setCurrentNoteId={setCurrentNoteId}
                             newNote={createNewNote}
