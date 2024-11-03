@@ -1,19 +1,20 @@
 /* eslint-disable no-unused-vars */
 
-import React, { useEffect } from "react"
+import React, { useEffect, useState } from "react"
 import Sidebar from "./components/Sidebar"
 import Editor from "./components/Editor"
 import Split from "react-split"
 import { nanoid } from "nanoid"
-import { onSnapshot, addDoc, doc, deleteDoc, setDoc } from "firebase/firestore"
+import { onSnapshot, addDoc, doc, deleteDoc, setDoc, getDoc } from "firebase/firestore"
 import { notesCollection, db } from "./firebase"
 
 
 
 export default function App() {
 
-    const [notes, setNotes] = React.useState([])
-    const [currentNoteId, setCurrentNoteId] = React.useState("")
+    const [notes, setNotes] = useState([])
+    const [currentNoteId, setCurrentNoteId] = useState("")
+    const [tempNoteText, setTempNoteText] = useState("")
 
     const sortedArray = notes.sort((a,b) => b.updatedAt  - a.updatedAt)
 
@@ -57,6 +58,23 @@ export default function App() {
         }
     }, [notes])
 
+    useEffect(() => {
+      if(currentNote){
+        setTempNoteText(currentNote.body)
+      }
+
+    }, [currentNote])
+
+    React.useEffect(() => {
+        const timeoutId = setTimeout(() => {
+            if (tempNoteText !== currentNote.body) {
+                updateNote(tempNoteText)
+            }
+        }, 500)
+        return () => clearTimeout(timeoutId)
+    }, [tempNoteText])
+    
+
     async function createNewNote() {
         const newNote = {
             body: "# Type your markdown note's title here",
@@ -72,10 +90,6 @@ export default function App() {
     async function updateNote(text) {
         const docRef =  doc(db,'notes' , currentNoteId )
         await setDoc(docRef, {body:text, updatedAt: Date.now()}, {merge: true} )
- 
-
-     
-
     }
 
     async function deleteNote( noteId) {
@@ -102,8 +116,8 @@ export default function App() {
                         />
                         {
                             <Editor
-                                currentNote={currentNote}
-                                updateNote={updateNote}
+                                tempNoteText={tempNoteText}
+                                setTempNoteText={setTempNoteText}
                             />
                         }
                     </Split>
